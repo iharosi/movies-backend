@@ -1,0 +1,4 @@
+mock/
+node_modules/
+public/posters/
+!*.gitkeep
