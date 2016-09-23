@@ -1,4 +1,5 @@
-mock/
 node_modules/
-public/posters/
+app/public/posters/
+movies/
+config.json
 !*.gitkeep

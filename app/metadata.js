@@ -1,19 +1,18 @@
 let fs = require('fs');
 let path = require('path');
 let request = require('request');
-let querystring = require('querystring');
 
 module.exports = {
 
     /**
      * @param {string} sourceDir Folder where movies can be found
-     * @param {string} apiBaseUrl API url from where metadata can be fetched
+     * @param {string} apiUrlTemplate API url from where metadata can be fetched
      * @param {function(Array)} callback Function that can be called when data
      * is ready
      */
-    getData: function(sourceDir, apiBaseUrl, callback) {
+    getData: function(sourceDir, apiUrlTemplate, callback) {
         this.sourceDir = sourceDir;
-        this.apiBaseUrl = apiBaseUrl;
+        this.apiUrlTemplate = apiUrlTemplate;
 
         this
             .getMovieTitles()
@@ -76,17 +75,10 @@ module.exports = {
         }
         return Promise.all(
             movies.map((item) => {
-                let params = querystring.stringify({
-                    type: 'movie',
-                    t: item.Title,
-                    y: item.Year,
-                    plot: 'full',
-                    r: 'json'
-                });
-                return this.callApi(
-                    this.apiBaseUrl + '/?' + params.replace('&y=', '+&y='),
-                    item
-                );
+                let url = this.apiUrlTemplate;
+                url = url.replace('{title}', encodeURI(item.Title));
+                url = url.replace('{year}', item.Year);
+                return this.callApi(url, item);
             })
         );
     },

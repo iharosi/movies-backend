@@ -1,0 +1,15 @@
+{
+    "sourceFolder": "./movies",
+    "posterFolder": "./public/posters",
+    "api": {
+        "metadata": {
+            "url": "https://www.omdbapi.com/?type=movie&t={title}+&y={year}&plot=full&r=json"
+        },
+        "poster": {
+            "url": "https://img.omdbapi.com/?i={imdbID}&apikey="
+        }
+    },
+    "server": {
+        "port": "8080"
+    }
+}
