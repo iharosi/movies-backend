@@ -18,6 +18,8 @@
     "express": "^5.0.0-alpha.2",
     "morgan": "^1.7.0",
     "request": "^2.75.0",
-    "serve-favicon": "^2.3.0"
+    "rethinkdb": "^2.3.3",
+    "serve-favicon": "^2.3.0",
+    "themoviedbclient": "^0.1.3"
   }
 }
