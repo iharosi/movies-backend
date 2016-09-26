@@ -1,5 +1,5 @@
-# Movies Web API
-Web API which fetches metadata based on movies found in a folder
+# Movies Web API backend
+Backend service which fetches metadata based on movies found in a folder and ensure an API service for web applications.
 
 ## Install dependencies
 
