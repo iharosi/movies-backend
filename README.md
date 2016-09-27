@@ -15,3 +15,7 @@ Requirements: [Node.js](http://nodejs.org)
 ## Run
 
 1. `npm start`
+
+## Run tests
+
+1. `npm test`
