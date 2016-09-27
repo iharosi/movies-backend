@@ -1,160 +1,63 @@
-const TABLENAME = 'movies';
+(function() {
+    module.exports = function Store(config) {
+        const TABLENAME = 'movies';
+        let r = require('rethinkdb');
 
-let r = require('rethinkdb');
-let path = require('path');
-let configLoader = require('./configLoader');
-let config = configLoader.load(path.join(__dirname, '../config.json'));
+        config = {
+            host: config.host || 'localhost',
+            port: config.port || 28015,
+            db: config.db || 'media',
+            user: config.user || 'admin',
+            password: config.password || '',
+            timeout: config.timeout || 5
+        };
 
-module.exports = {
-
-    /**
-     * @return {Promise} Returns a RethinkDB connect object
-     */
-    connect: function() {
-        return new Promise((resolve, reject) => {
-            r.connect({
-                host: config.database.host,
-                port: config.database.port,
-                db: config.database.db,
-                user: config.database.user,
-                password: config.database.password,
-                timeout: 5
-            }, (err, conn) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    r.tableList().run(conn, (err, res) => {
-                        if (err) {
-                            conn.close();
-                            reject(err);
-                        } else if (res.indexOf(TABLENAME) === -1) {
-                            r.tableCreate(TABLENAME).run(conn, (err) => {
-                                if (err) {
-                                    conn.close();
-                                    reject(err);
-                                } else {
-                                    resolve(conn);
-                                }
-                            });
-                        } else {
-                            resolve(conn);
-                        }
-                    });
-                }
-            });
-        });
-    },
-
-    /**
-     * @return {Promise} Return a promise with all the data in the table
-     */
-    getAll: function() {
-        return new Promise((resolve, reject) => {
-            this.connect()
-                .then((conn) => {
-                    r.table(TABLENAME)
-                        .run(conn, (err, cursor) => {
-                            conn.close();
+        /**
+         * @return {Promise} Returns a RethinkDB connect object
+         */
+        this._connect = function() {
+            return new Promise((resolve, reject) => {
+                r.connect({
+                    host: config.host,
+                    port: config.port,
+                    db: config.db,
+                    user: config.user,
+                    password: config.password,
+                    timeout: config.timeout
+                }, (err, conn) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        r.tableList().run(conn, (err, res) => {
                             if (err) {
+                                conn.close();
                                 reject(err);
-                            } else {
-                                cursor.toArray(function(err, result) {
+                            } else if (res.indexOf(TABLENAME) === -1) {
+                                r.tableCreate(TABLENAME).run(conn, (err) => {
                                     if (err) {
+                                        conn.close();
                                         reject(err);
                                     } else {
-                                        resolve(result);
+                                        resolve(conn);
                                     }
                                 });
+                            } else {
+                                resolve(conn);
                             }
                         });
-                })
-                .catch((err) => {
-                    reject(err);
+                    }
                 });
-        });
-    },
+            });
+        };
 
-    /**
-     * @param {Array.<object> | object} data Contains metadata of movie(s)
-     *
-     * @return {Promise} Return a promise with the summary of changes
-     */
-    insert: function(data) {
-        return new Promise((resolve, reject) => {
-            if (data) {
-                this.connect()
+        /**
+         * @return {Promise} Return a promise with the summary of changes
+         */
+        this.clear = function() {
+            return new Promise((resolve, reject) => {
+                this._connect()
                     .then((conn) => {
                         r.table(TABLENAME)
-                            .insert(data, {
-                                durability: 'hard',
-                                returnChanges: false,
-                                conflict: 'replace'
-                            })
-                            .run(conn, (err, res) => {
-                                conn.close();
-                                if (err) {
-                                    reject(err);
-                                } else {
-                                    resolve(res);
-                                }
-                            });
-                    })
-                    .catch((err) => {
-                        reject(err);
-                    });
-            } else {
-                reject('`data` is missing!');
-            }
-        });
-    },
-
-    /**
-     * @param {object} data Contains metadata of one movie
-     *
-     * @return {Promise} Return a promise with the summary of changes
-     */
-    update: function(data) {
-        return new Promise((resolve, reject) => {
-            if (data && data.id) {
-                this.connect()
-                    .then((conn) => {
-                        r.table(TABLENAME)
-                            .get(data.id)
-                            .update(data, {
-                                durability: 'hard',
-                                returnChanges: false,
-                                nonAtomic: false
-                            })
-                            .run(conn, (err, res) => {
-                                conn.close();
-                                if (err) {
-                                    reject(err, conn);
-                                } else {
-                                    resolve(res);
-                                }
-                            });
-                    })
-                    .catch((err) => {
-                        reject(err);
-                    });
-            } else {
-                reject('`data` is not valid!');
-            }
-        });
-    },
-
-    /**
-     * @param {number} id The ID of an objct of data in the database table
-     *
-     * @return {Promise} Return a promise with the summary of changes
-     */
-    delete: function(id) {
-        return new Promise((resolve, reject) => {
-            if (id) {
-                this.connect()
-                    .then((conn) => {
-                        r.table(TABLENAME)
-                            .get(id)
                             .delete()
                             .run(conn, (err, res) => {
                                 conn.close();
@@ -168,47 +71,200 @@ module.exports = {
                     .catch((err) => {
                         reject(err);
                     });
-            } else {
-                reject('`id` is missing!');
-            }
-        });
-    },
+            });
+        };
 
-    /**
-     * @param {Array.<object>} data Contains fetched movie datas
-     *
-     * @return {Promise} Return a promise with the summary of changes
-     */
-    clean: function(data) {
-        return new Promise((resolve, reject) => {
-            if (data && Array.isArray(data)) {
-                this.getAll()
-                    .then((res) => {
-                        let result = res.filter((movie) => {
-                            return !data.find((oneData) => {
-                                return oneData.id === movie.id;
-                            });
-                        })
-                        .map((movie) => {
-                            return this.delete(movie.id);
-                        });
-                        if (result && Array.isArray(result)) {
-                            Promise.all(result)
-                                .then((res) => {
-                                    resolve(res);
-                                })
-                                .catch((err) => {
+        /**
+         * @return {Promise} Return a promise with all the data in the table
+         */
+        this.getAll = function() {
+            return new Promise((resolve, reject) => {
+                this._connect()
+                    .then((conn) => {
+                        r.table(TABLENAME)
+                            .run(conn, (err, cursor) => {
+                                conn.close();
+                                if (err) {
                                     reject(err);
-                                });
-                        }
+                                } else {
+                                    cursor.toArray(function(err, result) {
+                                        if (err) {
+                                            reject(err);
+                                        } else {
+                                            resolve(result);
+                                        }
+                                    });
+                                }
+                            });
                     })
                     .catch((err) => {
                         reject(err);
                     });
-            } else {
-                reject('`data` is missing or not an Array!');
-            }
-        });
-    }
+            });
+        };
 
-};
+        /**
+         * @param {Array.<object> | object} data Contains metadata of movie(s)
+         *
+         * @return {Promise} Return a promise with the summary of changes
+         */
+        this.insert = function(data) {
+            return new Promise((resolve, reject) => {
+                if (data) {
+                    this._connect()
+                        .then((conn) => {
+                            r.table(TABLENAME)
+                                .insert(data, {
+                                    durability: 'hard',
+                                    returnChanges: false,
+                                    conflict: 'replace'
+                                })
+                                .run(conn, (err, res) => {
+                                    conn.close();
+                                    if (err) {
+                                        reject(err);
+                                    } else {
+                                        resolve(res);
+                                    }
+                                });
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                } else {
+                    reject('`data` is missing!');
+                }
+            });
+        };
+
+        /**
+         * @param {object} data Contains metadata of one movie
+         *
+         * @return {Promise} Return a promise with the summary of changes
+         */
+        this.update = function(data) {
+            return new Promise((resolve, reject) => {
+                if (data && data.id) {
+                    this._connect()
+                        .then((conn) => {
+                            r.table(TABLENAME)
+                                .get(data.id)
+                                .update(data, {
+                                    durability: 'hard',
+                                    returnChanges: false,
+                                    nonAtomic: false
+                                })
+                                .run(conn, (err, res) => {
+                                    conn.close();
+                                    if (err) {
+                                        reject(err, conn);
+                                    } else {
+                                        resolve(res);
+                                    }
+                                });
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                } else {
+                    reject('`data` is not valid!');
+                }
+            });
+        };
+
+        /**
+         * @param {Array.<number> | number} key ID/IDs which should be deleted
+         *
+         * @return {Promise} Return a promise with the summary of changes
+         */
+        this.delete = function(key) {
+            return new Promise((resolve, reject) => {
+                if (Array.isArray(key)) {
+                    this._connect()
+                        .then((conn) => {
+                            r.table(TABLENAME)
+                                .getAll(...key)
+                                .delete()
+                                .run(conn, (err, res) => {
+                                    conn.close();
+                                    if (err) {
+                                        reject(err);
+                                    } else {
+                                        resolve(res);
+                                    }
+                                });
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                } else if (typeof key === 'number') {
+                    this._connect()
+                        .then((conn) => {
+                            r.table(TABLENAME)
+                                .get(key)
+                                .delete()
+                                .run(conn, (err, res) => {
+                                    conn.close();
+                                    if (err) {
+                                        reject(err);
+                                    } else {
+                                        resolve(res);
+                                    }
+                                });
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                } else {
+                    reject('`id` is missing!');
+                }
+            });
+        };
+
+        /**
+         * @param {Array.<object>} data Contains fetched movie datas
+         *
+         * @return {Promise} Return a promise with the summary of changes
+         */
+        this.cleanDiff = function(data) {
+            return new Promise((resolve, reject) => {
+                if (data && Array.isArray(data)) {
+                    this.getAll()
+                        .then((res) => {
+                            let result = res.filter((movie) => {
+                                return !data.find((oneData) => {
+                                    return oneData.id === movie.id;
+                                });
+                            });
+                            if (Array.isArray(result) && result.length > 0) {
+                                let result = res.filter((movie) => {
+                                    return !data.find((oneData) => {
+                                        return oneData.id === movie.id;
+                                    });
+                                })
+                                .map((movie) => {
+                                    return parseInt(movie.id, 10);
+                                });
+                                this.delete(result)
+                                    .then((res) => {
+                                        resolve(res);
+                                    })
+                                    .catch((err) => {
+                                        reject(err);
+                                    });
+                            } else {
+                                resolve({
+                                    deleted: 0
+                                });
+                            }
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                } else {
+                    reject('`data` is missing or not an Array!');
+                }
+            });
+        };
+    };
+})();
