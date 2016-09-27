@@ -1,33 +1,11 @@
+const TABLENAME = 'movies';
+
 let r = require('rethinkdb');
 let path = require('path');
 let configLoader = require('./configLoader');
 let config = configLoader.load(path.join(__dirname, '../config.json'));
-const TABLENAME = 'movies';
 
 module.exports = {
-
-    /**
-     * @param {string} msg Message
-     */
-    log: (msg) => {
-        console.log(msg);
-    },
-
-    /**
-     * @param {object | string} err Error object or error message
-     * @param {object} conn RethinkDB connection object
-     */
-    handleError: function(err, conn) {
-        if (err && err.msg) {
-            this.log(err.msg);
-        } else {
-            this.log(err);
-        }
-        if (conn) {
-            conn.close();
-        }
-        process.exit(0);
-    },
 
     /**
      * @return {Promise} Returns a RethinkDB connect object
@@ -47,10 +25,12 @@ module.exports = {
                 } else {
                     r.tableList().run(conn, (err, res) => {
                         if (err) {
+                            conn.close();
                             reject(err);
                         } else if (res.indexOf(TABLENAME) === -1) {
                             r.tableCreate(TABLENAME).run(conn, (err) => {
                                 if (err) {
+                                    conn.close();
                                     reject(err);
                                 } else {
                                     resolve(conn);
@@ -66,33 +46,169 @@ module.exports = {
     },
 
     /**
-     * @param {Array.<object>} data Contains metadata of movies
+     * @return {Promise} Return a promise with all the data in the table
      */
-    add: function(data) {
-        if (Array.isArray(data)) {
+    getAll: function() {
+        return new Promise((resolve, reject) => {
             this.connect()
                 .then((conn) => {
                     r.table(TABLENAME)
-                        .insert(data, {
-                            durability: 'hard',
-                            returnChanges: false,
-                            conflict: 'replace'
-                        })
-                        .run(conn, (err, res) => {
+                        .run(conn, (err, cursor) => {
+                            conn.close();
                             if (err) {
-                                this.handleError(err, conn);
+                                reject(err);
                             } else {
-                                conn.close();
-                                this.log(res);
+                                cursor.toArray(function(err, result) {
+                                    if (err) {
+                                        reject(err);
+                                    } else {
+                                        resolve(result);
+                                    }
+                                });
                             }
                         });
                 })
                 .catch((err) => {
-                    this.handleError(err);
+                    reject(err);
                 });
-        } else {
-            this.handleError('`data` is not an Array!');
-        }
+        });
+    },
+
+    /**
+     * @param {Array.<object> | object} data Contains metadata of movie(s)
+     *
+     * @return {Promise} Return a promise with the summary of changes
+     */
+    insert: function(data) {
+        return new Promise((resolve, reject) => {
+            if (data) {
+                this.connect()
+                    .then((conn) => {
+                        r.table(TABLENAME)
+                            .insert(data, {
+                                durability: 'hard',
+                                returnChanges: false,
+                                conflict: 'replace'
+                            })
+                            .run(conn, (err, res) => {
+                                conn.close();
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    resolve(res);
+                                }
+                            });
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
+            } else {
+                reject('`data` is missing!');
+            }
+        });
+    },
+
+    /**
+     * @param {object} data Contains metadata of one movie
+     *
+     * @return {Promise} Return a promise with the summary of changes
+     */
+    update: function(data) {
+        return new Promise((resolve, reject) => {
+            if (data && data.id) {
+                this.connect()
+                    .then((conn) => {
+                        r.table(TABLENAME)
+                            .get(data.id)
+                            .update(data, {
+                                durability: 'hard',
+                                returnChanges: false,
+                                nonAtomic: false
+                            })
+                            .run(conn, (err, res) => {
+                                conn.close();
+                                if (err) {
+                                    reject(err, conn);
+                                } else {
+                                    resolve(res);
+                                }
+                            });
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
+            } else {
+                reject('`data` is not valid!');
+            }
+        });
+    },
+
+    /**
+     * @param {number} id The ID of an objct of data in the database table
+     *
+     * @return {Promise} Return a promise with the summary of changes
+     */
+    delete: function(id) {
+        return new Promise((resolve, reject) => {
+            if (id) {
+                this.connect()
+                    .then((conn) => {
+                        r.table(TABLENAME)
+                            .get(id)
+                            .delete()
+                            .run(conn, (err, res) => {
+                                conn.close();
+                                if (err) {
+                                    reject(err);
+                                } else {
+                                    resolve(res);
+                                }
+                            });
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
+            } else {
+                reject('`id` is missing!');
+            }
+        });
+    },
+
+    /**
+     * @param {Array.<object>} data Contains fetched movie datas
+     *
+     * @return {Promise} Return a promise with the summary of changes
+     */
+    clean: function(data) {
+        return new Promise((resolve, reject) => {
+            if (data && Array.isArray(data)) {
+                this.getAll()
+                    .then((res) => {
+                        let result = res.filter((movie) => {
+                            return !data.find((oneData) => {
+                                return oneData.id === movie.id;
+                            });
+                        })
+                        .map((movie) => {
+                            return this.delete(movie.id);
+                        });
+                        if (result && Array.isArray(result)) {
+                            Promise.all(result)
+                                .then((res) => {
+                                    resolve(res);
+                                })
+                                .catch((err) => {
+                                    reject(err);
+                                });
+                        }
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
+            } else {
+                reject('`data` is missing or not an Array!');
+            }
+        });
     }
 
 };
