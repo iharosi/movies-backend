@@ -3,9 +3,13 @@ Backend service which fetches metadata based on movies found in a folder and ens
 
 ## Install dependencies
 
-Requirements: [Node.js](http://nodejs.org)
+Requirements: [RethinkDB](https://rethinkdb.com), [Node.js](https://nodejs.org/)
 
-1. `npm install`
+On OS X you can install RethinkDB with brew.  
+For any other OS check out the [RethinkDB docs](https://www.rethinkdb.com/docs/install/).
+
+1. `brew install rethinkdb`
+2. `npm install`
 
 ## Set config file
 
@@ -14,8 +18,9 @@ Requirements: [Node.js](http://nodejs.org)
 
 ## Run
 
-1. `npm start`
+1. `rethinkdb` or to run as a service `brew services start rethinkdb`
+2. `npm start`
 
-## Run tests
+## Run unit tests and watch nyan cat :)
 
 1. `npm test`
