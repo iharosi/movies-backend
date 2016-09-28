@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node app/app.js",
-    "test": "mocha tests --recursive"
+    "test": "mocha tests --recursive --reporter nyan"
   },
   "author": "Gergely Iharosi",
   "license": "MIT",
