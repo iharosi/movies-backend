@@ -21,6 +21,6 @@ For any other OS check out the [RethinkDB docs](https://www.rethinkdb.com/docs/i
 1. `rethinkdb` or to run as a service `brew services start rethinkdb`
 2. `npm start`
 
-## Run unit tests and watch nyan cat :)
+## Run tests
 
 1. `npm test`
