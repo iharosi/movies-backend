@@ -11,6 +11,10 @@ describe('db', function() {
         db: 'test'
     });
 
+    after(function() {
+        return db.clear();
+    });
+
     beforeEach(function() {
         return db.clear()
             .then(function() {
