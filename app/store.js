@@ -25,17 +25,17 @@ let Store = function(config) {
                 timeout: config.timeout
             }, (err, conn) => {
                 if (err) {
-                    reject(err);
+                    reject(new Error(err));
                 } else {
                     r.tableList().run(conn, (err, res) => {
                         if (err) {
                             conn.close();
-                            reject(err);
+                            reject(new Error(err));
                         } else if (res.indexOf(TABLENAME) === -1) {
                             r.tableCreate(TABLENAME).run(conn, (err) => {
                                 if (err) {
                                     conn.close();
-                                    reject(err);
+                                    reject(new Error(err));
                                 } else {
                                     resolve(conn);
                                 }
