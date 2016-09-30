@@ -1,80 +1,171 @@
-let fs = require('fs');
-let path = require('path');
-let configLoader = require('./configloader');
+const fs = require('fs');
+const path = require('path');
+const configLoader = require('./configloader');
+const TMDbClient = require('./tmdbclient');
+const Bottleneck = require('bottleneck');
+const Store = require('./store');
+
 let config = configLoader.load(path.join(__dirname, '../config.json'));
-let TMDbClient = require('./tmdbclient');
 let tmdb = new TMDbClient(config.TMDbAPIkey);
-let Bottleneck = require('bottleneck');
 let limiter = new Bottleneck(0, 500);
-let Store = require('./store');
 let db = new Store(config.database);
 
-db.getAll()
-    .then((records) => {
-        extractDataFromFolderNames(config.sourceFolder)
-            .then((movies) => {
-                db.delete(
-                    records.filter((record) => {
-                        return !movies.find((movie) => {
-                            return record._source.folder === movie.folder;
-                        });
-                    }).map((record) => {
-                        return parseInt(record.id, 10);
-                    })
-                ).then((res) => {
-                    console.log(res);
-                    fetchMetadata(
-                        movies.filter((movie) => {
-                            return !records.find((record) => {
-                                return record._source.folder === movie.folder;
-                            });
-                        })
-                    );
-                })
-                .catch((err) => {
-                    console.log(err);
-                });
+getSourceAndDBdata()
+    .then((res) => {
+        cleanUpDB(res)
+            .then((results) => {
+                console.log('Database cleanup:');
+                console.log(results);
+                console.log('');
             })
             .catch((err) => {
                 console.log(err);
             });
-    })
-    .catch((err) => {
-        console.log(err);
+
+        findMovieMetadatas(
+            res.movies.filter((movie) => {
+                return !res.records.find((record) => {
+                    return record._source.folder === movie.folder;
+                });
+            })
+        )
+        .then((metadatas) => {
+            return metadatas.map((metadata, i) => {
+                let result = {
+                    _source: res.movies[i]
+                };
+                if (metadata.total_results > 0) {
+                    Object.assign(result, metadata.results[0]);
+                }
+                return result;
+            });
+        })
+        .then((movies) => {
+            console.log(movies);
+        })
+        .catch((err) => {
+            console.log(err);
+        });
     });
+
+/**
+ * @param {Array.<object>} movies Containing TMDb movie ID at least
+ *
+ * @return {Promise} Return a promise with the movie videos
+ */
+function fetchMovieVideos(movies) {
+    return Promise.all(
+        movies.map((movie) => {
+            return limiter.schedule(
+                tmdb.call.bind(
+                    tmdb,
+                    `/movie/${movie.id}/videos`,
+                    {}
+                )
+            );
+        })
+    );
+}
+
+/**
+ * @param {Array.<object>} movies Containing TMDb movie ID at least
+ *
+ * @return {Promise} Return a promise with the movie credits
+ */
+function fetchMovieCredits(movies) {
+    return Promise.all(
+        movies.map((movie) => {
+            return limiter.schedule(
+                tmdb.call.bind(
+                    tmdb,
+                    `/movie/${movie.id}/credits`,
+                    {}
+                )
+            );
+        })
+    );
+}
+
+/**
+ * @param {Array.<object>} movies Containing TMDb movie ID at least
+ *
+ * @return {Promise} Return a promise with the movie details
+ */
+function fetchMovieDetails(movies) {
+    return Promise.all(
+        movies.map((movie) => {
+            return limiter.schedule(
+                tmdb.call.bind(
+                    tmdb,
+                    `/movie/${movie.id}`,
+                    {}
+                )
+            );
+        })
+    );
+}
 
 /**
  * @param {Array.<object>} movies Extracted data from folder names
  *
- * @return {Promise} Return a promise with the summary of changes
+ * @return {Promise} Return a promise with the API call results
  */
-function fetchMetadata(movies) {
-    return new Promise((resolve, reject) => {
-        movies.forEach((movie) => {
-            limiter.schedule(function(url, params) {
-                return tmdb.call(url, params)
-                    .then((res) => {
-                        if (res.total_results === 0) {
-                            resolve('Missing: ', movie, '\n');
-                        } else {
-                            res.results[0]._source = movie;
-                            console.log('Fetched: ' + res.results[0].title);
-                            db.insert(res.results[0])
-                                .then((res) => {
-                                    resolve(res);
-                                })
-                                .catch((err) => {
-                                    reject(err);
-                                });
-                        }
-                    }).catch((err) => {
-                        console.log(err);
-                    });
-            }, '/search/movie', {
-                query: movie.title,
-                year: movie.year
+function findMovieMetadatas(movies) {
+    return Promise.all(
+        movies.map((movie) => {
+            return limiter.schedule(
+                tmdb.call.bind(
+                    tmdb,
+                    '/search/movie',
+                    {
+                        query: movie.title,
+                        year: movie.year
+                    }
+                )
+            );
+        })
+    );
+}
+
+/**
+ * @param {Object} data Contains the extracted data from folder names
+ * and latest database records
+ *
+ * @return {Promise} Returns a promise with the summary of changes
+ */
+function cleanUpDB(data) {
+    return db.delete(
+        data.records.filter((record) => {
+            return !data.movies.find((movie) => {
+                return record._source.folder === movie.folder;
             });
-        });
+        }).map((record) => {
+            return parseInt(record.id, 10);
+        })
+    );
+}
+
+/**
+ * @return {Promise} Folder names from source dir and records from DB
+ */
+function getSourceAndDBdata() {
+    return new Promise((resolve, reject) => {
+        db.getAll()
+            .then((records) => {
+                extractDataFromFolderNames(config.sourceFolder)
+                    .then((movies) => {
+                        resolve({
+                            records: records,
+                            movies: movies
+                        });
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
+            })
+            .catch((err) => {
+                reject(err);
+            });
     });
 }
 
