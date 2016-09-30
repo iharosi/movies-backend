@@ -9,7 +9,8 @@ let TMDbClient = function(APIkey) {
 
     const BASE_PATH = 'https://api.themoviedb.org/3';
     const CONFIG_EXPIRATION = 72; // hours
-    let request = require('request');
+    const request = require('request');
+
     let configuration = null;
     let lastConfigDate = Date.now();
 

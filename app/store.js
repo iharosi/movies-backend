@@ -1,6 +1,6 @@
 let Store = function(config) {
     const TABLENAME = 'movies';
-    let r = require('rethinkdb');
+    const r = require('rethinkdb');
 
     config = {
         host: config.host || 'localhost',
