@@ -1,25 +1,20 @@
 # Movies Web API backend
-Backend service which fetches metadata based on movies found in a folder and ensure an API service for web applications.
+Backend service which fetches metadata based on movies found in a folder and create a TMDb List of them.
 
 ## Install dependencies
 
-Requirements: [RethinkDB](https://rethinkdb.com), [Node.js](https://nodejs.org/)
+Requirements: [Node.js](https://nodejs.org/) at least version 6.x
 
-On OS X you can install RethinkDB with brew.  
-For any other OS check out the [RethinkDB docs](https://www.rethinkdb.com/docs/install/).
-
-1. `brew install rethinkdb`
-2. `npm install`
+1. `npm install`
 
 ## Set config file
 
-1. `mv config.json.sample config.json`
-2. `vim config.json`
+1. `mv config.js.sample config.js`
+2. `vim config.js`
 
 ## Run
 
-1. `rethinkdb` or to run as a service `brew services start rethinkdb`
-2. `npm start`
+1. `npm start`
 
 ## Run tests
 
