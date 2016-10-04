@@ -1,8 +1,8 @@
 /* eslint camelcase: ["error", {properties: "never"}] */
 
 const fs = require('fs');
+const co = require('co');
 const path = require('path');
-const Promise = require('bluebird');
 const Bottleneck = require('bottleneck');
 const waitkey = require('./waitkey');
 const TMDbClient = require('./tmdbclient');
@@ -11,45 +11,61 @@ let limiter = new Bottleneck(0, 500);
 let config = require(path.join(__dirname, '../config.js'));
 let tmdb = new TMDbClient(config.tmdb.key);
 
-/**
- * @param {number} listId The ID of the selected List
- */
-let start = Promise.coroutine(function* (listId) {
-    try {
-        let movieDatas = yield extractDataFromFolderNames(config.sourceFolder);
-        let movieMetadatas = yield findMovieMetadatas(movieDatas);
-        let localMovies = movieMetadatas.map((metadata, i) => {
-            let result = {
-                _source: movieDatas[i]
-            };
-            if (metadata.total_results > 0) {
-                Object.assign(result, metadata.results[0]);
-            }
-            return result;
+co(function* () {
+    let sessionId = yield getSessionId();
+    tmdb.config({
+        sessionId: sessionId
+    });
+    let account = yield tmdb.call('/account');
+    console.log();
+    console.log('api_key:', config.tmdb.key);
+    console.log('session_id:', sessionId);
+    console.log('account_id:', account.id);
+    console.log();
+    let createdList = yield tmdb.call(`/account/${account.id}/lists`);
+    let listId;
+    if (createdList.results.length) {
+        let result = createdList.results.find((item) => {
+            return item.name === 'My movies';
         });
-        let tmdbMovies = yield tmdb.call(`/list/${listId}`);
-        let diff = getDiff(localMovies, tmdbMovies.items);
-
-        addOrRemoveMovies(diff, listId)
-            .then((res) => {
-                console.log('res', res);
-            })
-            .catch((err) => {
-                console.log('err', err);
-            });
-
-        // diff.remove = diff.remove.map((movie) => {
-        //     return movie.title;
-        // });
-        // diff.add = diff.add.map((movie) => {
-        //     return movie.title;
-        // });
-
-        // console.log(diff);
-    } catch (error) {
-        console.log(error);
-        process.exit(0);
+        if (result) {
+            listId = result.id;
+        }
     }
+    if (!listId) {
+        let result = yield tmdb.call('/list', {}, 'POST', {
+            name: 'My movies',
+            description: '',
+            language: 'en'
+        });
+        listId = result.list_id;
+    }
+    let movieDatas = yield extractDataFromFolderNames(config.sourceFolder);
+    let movieMetadatas = yield findMovieMetadatas(movieDatas);
+    let localMovies = movieMetadatas.map((metadata, i) => {
+        let result = {
+            _source: movieDatas[i]
+        };
+        if (metadata.total_results > 0) {
+            Object.assign(result, metadata.results[0]);
+        }
+        return result;
+    });
+    let tmdbMovies = yield tmdb.call(`/list/${listId}`);
+    let diff = getDiff(localMovies, tmdbMovies.items);
+
+    yield addOrRemoveMovies(diff, listId);
+    // diff.remove = diff.remove.map((movie) => {
+    //     return movie.title;
+    // });
+    // diff.add = diff.add.map((movie) => {
+    //     return movie.title;
+    // });
+
+    // console.log(diff);
+}).catch((error) => {
+    console.log('Error', error);
+    process.exit(0);
 });
 
 /**
@@ -217,40 +233,3 @@ function extractDataFromFolderNames(sourceDir) {
         });
     });
 }
-
-Promise.coroutine(function* init() {
-    try {
-        let sessionId = yield getSessionId();
-        tmdb.config({
-            sessionId: sessionId
-        });
-        let account = yield tmdb.call('/account');
-        console.log();
-        console.log('api_key:', config.tmdb.key);
-        console.log('session_id:', sessionId);
-        console.log('account_id:', account.id);
-        console.log();
-        let createdList = yield tmdb.call(`/account/${account.id}/lists`);
-        let listId;
-        if (createdList.results.length) {
-            let result = createdList.results.find((item) => {
-                return item.name === 'My movies';
-            });
-            if (result) {
-                listId = result.id;
-            }
-        }
-        if (!listId) {
-            let result = yield tmdb.call('/list', {}, 'POST', {
-                name: 'My movies',
-                description: '',
-                language: 'en'
-            });
-            listId = result.list_id;
-        }
-        start(listId);
-    } catch (error) {
-        console.log(error);
-        process.exit(0);
-    }
-})();
