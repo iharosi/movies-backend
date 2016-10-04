@@ -2,5 +2,5 @@ node_modules/
 rethinkdb_data/
 app/public/posters/
 movies/
-config.json
+config.js
 !*.gitkeep
