@@ -60,7 +60,7 @@ let TMDbClient = function(key) {
             url: this.basePath + url,
             qs: queryString,
             headers: {
-                'content-type': 'application/json'
+                'content-type': 'application/json;charset=utf-8'
             },
             body: body,
             json: true
@@ -89,10 +89,10 @@ let TMDbClient = function(key) {
     this.call = function(url, params, method, body) {
         return new Promise((resolve, reject) => {
             let options = this._createRequestOption(url, params, method, body);
-            request(options, (error, response, body) => {
+            request(options, (error, res, body) => {
                 if (error) {
                     reject(new Error(error));
-                } else if (response.statusCode === 200) {
+                } else if (res.statusCode >= 200 && res.statusCode < 300) {
                     resolve(body);
                 } else {
                     reject(body);
