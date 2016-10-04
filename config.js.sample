@@ -2,16 +2,7 @@ module.exports = {
     sourceFolder: './movies',
     posterFolder: './public/posters',
     tmdb: {
-        key: ''
-    },
-    rethinkdb: {
-        host: 'localhost',
-        port: 28015,
-        db: 'media',
-        user: 'admin',
-        password: ''
-    },
-    express: {
-        port: '3003'
+        key: '',
+        list: 'Movies'
     }
 };

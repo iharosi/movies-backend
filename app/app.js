@@ -27,7 +27,7 @@ co(function* () {
     let listId;
     if (createdList.results.length) {
         let result = createdList.results.find((item) => {
-            return item.name === 'My movies';
+            return item.name === config.tmdb.list;
         });
         if (result) {
             listId = result.id;
@@ -35,7 +35,7 @@ co(function* () {
     }
     if (!listId) {
         let result = yield tmdb.call('/list', {}, 'POST', {
-            name: 'My movies',
+            name: config.tmdb.list,
             description: '',
             language: 'en'
         });
