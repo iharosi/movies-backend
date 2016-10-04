@@ -6,22 +6,23 @@ const path = require('path');
 const Bottleneck = require('bottleneck');
 const waitkey = require('./waitkey');
 const TMDbClient = require('./tmdbclient');
+const Cacher = require('./cacher');
 
-let limiter = new Bottleneck(0, 500);
+let limiter = new Bottleneck(0, 300);
 let config = require(path.join(__dirname, '../config.js'));
 let tmdb = new TMDbClient(config.tmdb.key);
+let cache = new Cacher(path.join(__dirname, '../cache'));
 
 co(function* () {
-    let sessionId = yield getSessionId();
+    let sessionId = yield cache.getData();
+    if (!sessionId || !sessionId.length) {
+        sessionId = yield getSessionId();
+        cache.setData(sessionId);
+    }
     tmdb.config({
         sessionId: sessionId
     });
     let account = yield tmdb.call('/account');
-    console.log();
-    console.log('api_key:', config.tmdb.key);
-    console.log('session_id:', sessionId);
-    console.log('account_id:', account.id);
-    console.log();
     let createdList = yield tmdb.call(`/account/${account.id}/lists`);
     let listId;
     if (createdList.results.length) {
@@ -40,6 +41,12 @@ co(function* () {
         });
         listId = result.list_id;
     }
+    console.log();
+    console.log('api_key:', config.tmdb.key);
+    console.log('session_id:', sessionId);
+    console.log('account_id:', account.id);
+    console.log('list_id:', listId);
+    console.log();
     let movieDatas = yield extractDataFromFolderNames(config.sourceFolder);
     let movieMetadatas = yield findMovieMetadatas(movieDatas);
     let localMovies = movieMetadatas.map((metadata, i) => {
@@ -52,21 +59,37 @@ co(function* () {
         return result;
     });
     let tmdbMovies = yield tmdb.call(`/list/${listId}`);
-    let diff = getDiff(localMovies, tmdbMovies.items);
+    let changes = getDiff(localMovies, tmdbMovies.items);
 
-    yield addOrRemoveMovies(diff, listId);
-    // diff.remove = diff.remove.map((movie) => {
-    //     return movie.title;
-    // });
-    // diff.add = diff.add.map((movie) => {
-    //     return movie.title;
-    // });
+    yield addOrRemoveMovies(changes, listId);
 
-    // console.log(diff);
+    summary(changes);
 }).catch((error) => {
     console.log('Error', error);
     process.exit(0);
 });
+
+/**
+ * @param {Object} changes The list of removed and added movies
+ */
+function summary(changes) {
+    changes.remove = changes.remove.map((movie) => {
+        return movie.title;
+    });
+    changes.add = changes.add.map((movie) => {
+        return movie.title;
+    });
+    if (changes.remove.length) {
+        console.log('––– removed –––');
+        console.log(changes.remove.join('\n'));
+        console.log();
+    }
+    if (changes.add.length) {
+        console.log('––– added –––');
+        console.log(changes.add.join('\n'));
+        console.log();
+    }
+}
 
 /**
  * @return {Promise} New session
