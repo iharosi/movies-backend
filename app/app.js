@@ -1,114 +1,167 @@
+/* eslint camelcase: ["error", {properties: "never"}] */
+
 const fs = require('fs');
 const path = require('path');
-const configLoader = require('./configloader');
-const TMDbClient = require('./tmdbclient');
+const Promise = require('bluebird');
 const Bottleneck = require('bottleneck');
-const Store = require('./store');
+const waitkey = require('./waitkey');
+const TMDbClient = require('./tmdbclient');
 
-let config = configLoader.load(path.join(__dirname, '../config.json'));
-let tmdb = new TMDbClient(config.TMDbAPIkey);
 let limiter = new Bottleneck(0, 500);
-let db = new Store(config.database);
+let config = require(path.join(__dirname, '../config.js'));
+let tmdb = new TMDbClient(config.tmdb.key);
 
-getSourceAndDBdata()
-    .then((res) => {
-        cleanUpDB(res)
-            .then((results) => {
-                console.log('Database cleanup:');
-                console.log(results);
-                console.log('');
+/**
+ * @param {number} listId The ID of the selected List
+ */
+let start = Promise.coroutine(function* (listId) {
+    try {
+        let movieDatas = yield extractDataFromFolderNames(config.sourceFolder);
+        let movieMetadatas = yield findMovieMetadatas(movieDatas);
+        let localMovies = movieMetadatas.map((metadata, i) => {
+            let result = {
+                _source: movieDatas[i]
+            };
+            if (metadata.total_results > 0) {
+                Object.assign(result, metadata.results[0]);
+            }
+            return result;
+        });
+        let tmdbMovies = yield tmdb.call(`/list/${listId}`);
+        let diff = getDiff(localMovies, tmdbMovies.items);
+
+        addOrRemoveMovies(diff, listId)
+            .then((res) => {
+                console.log('res', res);
             })
             .catch((err) => {
-                console.log(err);
+                console.log('err', err);
             });
 
-        findMovieMetadatas(
-            res.movies.filter((movie) => {
-                return !res.records.find((record) => {
-                    return record._source.folder === movie.folder;
-                });
+        // diff.remove = diff.remove.map((movie) => {
+        //     return movie.title;
+        // });
+        // diff.add = diff.add.map((movie) => {
+        //     return movie.title;
+        // });
+
+        // console.log(diff);
+    } catch (error) {
+        console.log(error);
+        process.exit(0);
+    }
+});
+
+/**
+ * @return {Promise} New session
+ */
+function getSessionId() {
+    return new Promise((resolve, reject) => {
+        tmdb.call('/authentication/token/new')
+            .then((auth) => {
+                console.log();
+                console.log('Approve the application with this URL:');
+                console.log(`https://www.themoviedb.org/authenticate/${auth.request_token}`);
+                console.log();
+                wait()
+                    .then(() => {
+                        tmdb.call('/authentication/session/new', {
+                            request_token: auth.request_token
+                        })
+                        .then((session) => {
+                            resolve(session.session_id);
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
             })
-        )
-        .then((metadatas) => {
-            return metadatas.map((metadata, i) => {
-                let result = {
-                    _source: res.movies[i]
-                };
-                if (metadata.total_results > 0) {
-                    Object.assign(result, metadata.results[0]);
-                }
-                return result;
+            .catch((err) => {
+                reject(err);
             });
-        })
-        .then((movies) => {
-            console.log(movies);
-        })
-        .catch((err) => {
-            console.log(err);
+    });
+}
+
+/**
+ * @return {Promise} undefined
+ */
+function wait() {
+    return new Promise((resolve, reject) => {
+        console.log('Press any key to continue...');
+        waitkey((res) => {
+            if (res) {
+                resolve();
+            } else {
+                reject('^C');
+            }
         });
     });
-
-/**
- * @param {Array.<object>} movies Containing TMDb movie ID at least
- *
- * @return {Promise} Return a promise with the movie videos
- */
-function fetchMovieVideos(movies) {
-    return Promise.all(
-        movies.map((movie) => {
-            return limiter.schedule(
-                tmdb.call.bind(
-                    tmdb,
-                    `/movie/${movie.id}/videos`,
-                    {}
-                )
-            );
-        })
-    );
 }
 
 /**
- * @param {Array.<object>} movies Containing TMDb movie ID at least
+ * @param {Array.<object>} localMovies Metadatas of local movies
+ * @param {Array.<object>} tmdbMovies Metadatas of cloud movies
  *
- * @return {Promise} Return a promise with the movie credits
+ * @return {Object} Should be deleted and should be added lists of movies
  */
-function fetchMovieCredits(movies) {
-    return Promise.all(
-        movies.map((movie) => {
-            return limiter.schedule(
-                tmdb.call.bind(
-                    tmdb,
-                    `/movie/${movie.id}/credits`,
-                    {}
-                )
-            );
+function getDiff(localMovies, tmdbMovies) {
+    return {
+        remove: tmdbMovies.filter((tmdbMovie) => {
+            return !localMovies.find((localMovie) => {
+                return localMovie.id === tmdbMovie.id;
+            });
+        }),
+        add: localMovies.filter((localMovie) => {
+            return !tmdbMovies.find((tmdbMovie) => {
+                return tmdbMovie.id === localMovie.id;
+            });
         })
-    );
+    };
 }
 
 /**
- * @param {Array.<object>} movies Containing TMDb movie ID at least
+ * @param {Object} movies The list of movies what should be added and/or removed
+ * @param {number} listId The ID of the selected List
  *
- * @return {Promise} Return a promise with the movie details
+ * @return {Array.<promise>} An array of API call response bodies
  */
-function fetchMovieDetails(movies) {
+function addOrRemoveMovies(movies, listId) {
     return Promise.all(
-        movies.map((movie) => {
+        movies.remove.map((movie) => {
             return limiter.schedule(
                 tmdb.call.bind(
                     tmdb,
-                    `/movie/${movie.id}`,
-                    {}
+                    `/list/${listId}/remove_item`,
+                    {},
+                    'POST',
+                    {
+                        media_id: movie.id
+                    }
                 )
             );
-        })
+        }).concat(movies.add.map((movie) => {
+            return limiter.schedule(
+                tmdb.call.bind(
+                    tmdb,
+                    `/list/${listId}/add_item`,
+                    {},
+                    'POST',
+                    {
+                        media_id: movie.id
+                    }
+                )
+            );
+        }))
     );
 }
 
 /**
  * @param {Array.<object>} movies Extracted data from folder names
  *
- * @return {Promise} Return a promise with the API call results
+ * @return {Promise} API call response body
  */
 function findMovieMetadatas(movies) {
     return Promise.all(
@@ -125,48 +178,6 @@ function findMovieMetadatas(movies) {
             );
         })
     );
-}
-
-/**
- * @param {Object} data Contains the extracted data from folder names
- * and latest database records
- *
- * @return {Promise} Returns a promise with the summary of changes
- */
-function cleanUpDB(data) {
-    return db.delete(
-        data.records.filter((record) => {
-            return !data.movies.find((movie) => {
-                return record._source.folder === movie.folder;
-            });
-        }).map((record) => {
-            return parseInt(record.id, 10);
-        })
-    );
-}
-
-/**
- * @return {Promise} Folder names from source dir and records from DB
- */
-function getSourceAndDBdata() {
-    return new Promise((resolve, reject) => {
-        db.getAll()
-            .then((records) => {
-                extractDataFromFolderNames(config.sourceFolder)
-                    .then((movies) => {
-                        resolve({
-                            records: records,
-                            movies: movies
-                        });
-                    })
-                    .catch((err) => {
-                        reject(err);
-                    });
-            })
-            .catch((err) => {
-                reject(err);
-            });
-    });
 }
 
 /**
@@ -206,3 +217,40 @@ function extractDataFromFolderNames(sourceDir) {
         });
     });
 }
+
+Promise.coroutine(function* init() {
+    try {
+        let sessionId = yield getSessionId();
+        tmdb.config({
+            sessionId: sessionId
+        });
+        let account = yield tmdb.call('/account');
+        console.log();
+        console.log('api_key:', config.tmdb.key);
+        console.log('session_id:', sessionId);
+        console.log('account_id:', account.id);
+        console.log();
+        let createdList = yield tmdb.call(`/account/${account.id}/lists`);
+        let listId;
+        if (createdList.results.length) {
+            let result = createdList.results.find((item) => {
+                return item.name === 'My movies';
+            });
+            if (result) {
+                listId = result.id;
+            }
+        }
+        if (!listId) {
+            let result = yield tmdb.call('/list', {}, 'POST', {
+                name: 'My movies',
+                description: '',
+                language: 'en'
+            });
+            listId = result.list_id;
+        }
+        start(listId);
+    } catch (error) {
+        console.log(error);
+        process.exit(0);
+    }
+})();

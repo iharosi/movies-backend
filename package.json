@@ -14,10 +14,12 @@
     "url": "git@github.com:iharosi/movies-backend.git"
   },
   "dependencies": {
+    "bluebird": "^3.4.6",
     "body-parser": "^1.15.2",
     "bottleneck": "^1.13.1",
     "cors": "^2.8.0",
     "express": "^5.0.0-alpha.2",
+    "keypress": "^0.2.1",
     "morgan": "^1.7.0",
     "request": "^2.75.0",
     "rethinkdb": "^2.3.3",
