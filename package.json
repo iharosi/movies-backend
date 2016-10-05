@@ -1,6 +1,6 @@
 {
   "name": "movies-backend",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Movies backend",
   "scripts": {
     "start": "node index.js"
