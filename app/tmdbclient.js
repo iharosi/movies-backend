@@ -89,10 +89,10 @@ let TMDbClient = function(key) {
     this.call = function(url, params, method, body) {
         return new Promise((resolve, reject) => {
             let options = this._createRequestOption(url, params, method, body);
-            request(options, (error, res, body) => {
+            request(options, (error, response, body) => {
                 if (error) {
                     reject(new Error(error));
-                } else if (res.statusCode >= 200 && res.statusCode < 300) {
+                } else if (response.statusCode.toString()[0] === '2') {
                     resolve(body);
                 } else {
                     reject(body);
