@@ -1,0 +1,8 @@
+module.exports = {
+    sourceFolder: './movies',
+    posterFolder: './public/posters',
+    tmdb: {
+        key: '',
+        list: 'Movies'
+    }
+};

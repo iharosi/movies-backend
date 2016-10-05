@@ -1,10 +1,9 @@
 {
   "name": "movies-backend",
   "version": "0.0.1",
-  "description": "Movies Web API",
-  "main": "server.js",
+  "description": "Movies backend",
   "scripts": {
-    "start": "node app/app.js"
+    "start": "node index.js"
   },
   "author": "Gergely Iharosi",
   "license": "MIT",
@@ -13,11 +12,9 @@
     "url": "git@github.com:iharosi/movies-backend.git"
   },
   "dependencies": {
-    "body-parser": "^1.15.2",
-    "cors": "^2.8.0",
-    "express": "^5.0.0-alpha.2",
-    "morgan": "^1.7.0",
-    "request": "^2.75.0",
-    "serve-favicon": "^2.3.0"
+    "bottleneck": "^1.13.1",
+    "co": "^4.6.0",
+    "keypress": "^0.2.1",
+    "request": "^2.75.0"
   }
 }
