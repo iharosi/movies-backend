@@ -9,10 +9,12 @@ Requirements: [Node.js](https://nodejs.org/) at least version 6.x
 
 1. `npm install`
 
-## Set config file
+## Create and set config file
 
 1. `mv config.js.sample config.js`
-2. `vim config.js`
+2. use your favourite editor to edit the config file
+3. enter your TMDb API key
+4. enter your desired (or existing) TMDb List name
 
 ## Run
 
