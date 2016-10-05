@@ -63,7 +63,7 @@ co(function* () {
 
     yield addOrRemoveMovies(changes, listId);
 
-    summary(changes);
+    logSummary(changes);
 }).catch((error) => {
     console.log('Error', error);
     process.exit(0);
@@ -72,7 +72,7 @@ co(function* () {
 /**
  * @param {Object} changes The list of removed and added movies
  */
-function summary(changes) {
+function logSummary(changes) {
     changes.remove = changes.remove.map((movie) => {
         return movie.title;
     });
@@ -92,7 +92,7 @@ function summary(changes) {
 }
 
 /**
- * @return {Promise} New session
+ * @return {Promise} Session ID
  */
 function getSessionId() {
     return new Promise((resolve, reject) => {
@@ -231,25 +231,24 @@ function extractDataFromFolderNames(sourceDir) {
                 reject(new Error(err));
             }
             if (items && items.length) {
-                resolve(
-                    items
-                        .filter((item) => {
-                            return fs
-                                .statSync(path.join(sourceDir, item))
-                                .isDirectory();
-                        })
-                        .filter((item) => {
-                            return item.match(/^(.+)\.(\d{4})\./i) !== null;
-                        })
-                        .map((item) => {
-                            let matched = item.match(/^(.+)\.(\d{4})\./i);
-                            return {
-                                title: matched[1].replace(/\./g, ' '),
-                                year: matched[2],
-                                folder: item
-                            };
-                        })
-                );
+                let data = items
+                    .filter((item) => {
+                        return fs
+                            .statSync(path.join(sourceDir, item))
+                            .isDirectory();
+                    })
+                    .filter((item) => {
+                        return item.match(/^(.+)\.(\d{4})\./i) !== null;
+                    })
+                    .map((item) => {
+                        let matched = item.match(/^(.+)\.(\d{4})\./i);
+                        return {
+                            title: matched[1].replace(/\./g, ' '),
+                            year: matched[2],
+                            folder: item
+                        };
+                    });
+                resolve(data);
             } else {
                 resolve([]);
             }
