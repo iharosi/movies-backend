@@ -52,9 +52,6 @@ let TMDbClient = function(key) {
         method = method || 'GET';
         body = body || {};
         let queryString = Object.assign(params, {api_key: this.key});
-        if (this.sessionId) {
-            Object.assign(queryString, {session_id: this.sessionId});
-        }
         return {
             method: method,
             url: this.basePath + url,
@@ -68,17 +65,6 @@ let TMDbClient = function(key) {
     };
 
     /**
-     * @param {object} options Change variables or set session_id
-     */
-    this.config = function(options) {
-        if (typeof options === 'object') {
-            Object.getOwnPropertyNames(options).forEach((property) => {
-                this[property] = options[property];
-            });
-        }
-    };
-
-    /**
      * @param {string} url API endpoint path (required)
      * @param {object} params Query string parameters (optional)
      * @param {string} method HTTP method (optional, default is: GET)
@@ -89,13 +75,12 @@ let TMDbClient = function(key) {
     this.call = function(url, params, method, body) {
         return new Promise((resolve, reject) => {
             let options = this._createRequestOption(url, params, method, body);
+            console.log(options.method, url);
             request(options, (error, response, body) => {
                 if (error) {
                     reject(new Error(error));
-                } else if (response.statusCode.toString()[0] === '2') {
-                    resolve(body);
                 } else {
-                    reject(body);
+                    resolve(body);
                 }
             });
         });
