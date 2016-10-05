@@ -19,7 +19,3 @@ Requirements: [Node.js](https://nodejs.org/) at least version 6.x
 ## Run
 
 1. `npm start`
-
-## Run tests
-
-1. `npm test`
