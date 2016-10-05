@@ -19,11 +19,19 @@ co(function* () {
         sessionId = yield getSessionId();
         cache.setData(sessionId);
     }
-    tmdb.config({
-        sessionId: sessionId
+    let account = yield tmdb.call('/account', {
+        session_id: sessionId
     });
-    let account = yield tmdb.call('/account');
-    let createdList = yield tmdb.call(`/account/${account.id}/lists`);
+    if (account.status_code === 3) {
+        sessionId = yield getSessionId();
+        cache.setData(sessionId);
+        account = yield tmdb.call('/account', {
+            session_id: sessionId
+        });
+    }
+    let createdList = yield tmdb.call(`/account/${account.id}/lists`, {
+        session_id: sessionId
+    });
     let listId;
     if (createdList.results.length) {
         let result = createdList.results.find((item) => {
@@ -37,12 +45,12 @@ co(function* () {
         let result = yield tmdb.call('/list', {}, 'POST', {
             name: config.tmdb.list,
             description: '',
-            language: 'en'
+            language: 'en',
+            session_id: sessionId
         });
         listId = result.list_id;
     }
     console.log();
-    console.log('api_key:', config.tmdb.key);
     console.log('session_id:', sessionId);
     console.log('account_id:', account.id);
     console.log('list_id:', listId);
@@ -58,10 +66,12 @@ co(function* () {
         }
         return result;
     });
-    let tmdbMovies = yield tmdb.call(`/list/${listId}`);
+    let tmdbMovies = yield tmdb.call(`/list/${listId}`, {
+        session_id: sessionId
+    });
     let changes = getDiff(localMovies, tmdbMovies.items);
 
-    yield addOrRemoveMovies(changes, listId);
+    yield addOrRemoveMovies(changes, listId, sessionId);
 
     logSummary(changes);
 }).catch((error) => {
@@ -163,11 +173,12 @@ function getDiff(localMovies, tmdbMovies) {
 
 /**
  * @param {Object} movies The list of movies what should be added and/or removed
- * @param {number} listId The ID of the selected List
+ * @param {Number} listId The ID of the selected List
+ * @param {Number} sessionId Session ID
  *
  * @return {Array.<promise>} An array of API call response bodies
  */
-function addOrRemoveMovies(movies, listId) {
+function addOrRemoveMovies(movies, listId, sessionId) {
     return Promise.all(
         movies.remove.map((movie) => {
             return limiter.schedule(
@@ -177,7 +188,8 @@ function addOrRemoveMovies(movies, listId) {
                     {},
                     'POST',
                     {
-                        media_id: movie.id
+                        media_id: movie.id,
+                        session_id: sessionId
                     }
                 )
             );
@@ -189,7 +201,8 @@ function addOrRemoveMovies(movies, listId) {
                     {},
                     'POST',
                     {
-                        media_id: movie.id
+                        media_id: movie.id,
+                        session_id: sessionId
                     }
                 )
             );
