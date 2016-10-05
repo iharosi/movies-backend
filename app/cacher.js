@@ -1,6 +1,6 @@
 let Cacher = function(file) {
     if (!file) {
-        throw new Error('Missing file!');
+        throw new Error('Missing file parameter!');
     }
     let fs = require('fs');
     this.file = file;
@@ -18,6 +18,11 @@ let Cacher = function(file) {
 
     this.getData = function() {
         return new Promise((resolve, reject) => {
+            fs.stat(this.file, (err) => {
+                if (err) {
+                    resolve(false);
+                }
+            });
             fs.readFile(this.file, {encoding: 'utf8'}, (err, data) => {
                 if (err) {
                     reject(new Error(err));
