@@ -4,14 +4,14 @@ const fs = require('fs');
 const co = require('co');
 const path = require('path');
 const Bottleneck = require('bottleneck');
-const waitkey = require('./waitkey');
-const TMDbClient = require('./tmdbclient');
-const Cacher = require('./cacher');
+const waitkey = require('./lib/waitkey');
+const TMDbClient = require('./lib/tmdbclient');
+const Cacher = require('./lib/cacher');
 
 let limiter = new Bottleneck(0, 300);
-let config = require(path.join(__dirname, '../config.js'));
+let config = require('./config.js');
 let tmdb = new TMDbClient(config.tmdb.key);
-let cache = new Cacher(path.join(__dirname, '../cache'));
+let cache = new Cacher('./cache');
 
 co(function* () {
     let sessionId = yield cache.getData();
@@ -63,6 +63,8 @@ co(function* () {
         };
         if (metadata.total_results > 0) {
             Object.assign(result, metadata.results[0]);
+        } else {
+            console.log(result);
         }
         return result;
     });
