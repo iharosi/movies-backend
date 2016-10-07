@@ -187,11 +187,12 @@ function addOrRemoveMovies(movies, listId, sessionId) {
                 tmdb.call.bind(
                     tmdb,
                     `/list/${listId}/remove_item`,
-                    {},
+                    {
+                        session_id: sessionId
+                    },
                     'POST',
                     {
-                        media_id: movie.id,
-                        session_id: sessionId
+                        media_id: movie.id
                     }
                 )
             );
@@ -200,11 +201,12 @@ function addOrRemoveMovies(movies, listId, sessionId) {
                 tmdb.call.bind(
                     tmdb,
                     `/list/${listId}/add_item`,
-                    {},
+                    {
+                        session_id: sessionId
+                    },
                     'POST',
                     {
-                        media_id: movie.id,
-                        session_id: sessionId
+                        media_id: movie.id
                     }
                 )
             );
