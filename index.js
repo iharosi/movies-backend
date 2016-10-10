@@ -4,78 +4,60 @@ const fs = require('fs');
 const co = require('co');
 const path = require('path');
 const Bottleneck = require('bottleneck');
-const waitkey = require('./lib/waitkey');
 const TMDbClient = require('./lib/tmdbclient');
+const TMDbAuth = require('./lib/tmdbauth');
 const Cacher = require('./lib/cacher');
 
 let limiter = new Bottleneck(0, 300);
 let config = require('./config.js');
 let tmdb = new TMDbClient(config.tmdb.key);
-let cache = new Cacher('./cache');
+let tmdba = new TMDbAuth(config.tmdb.key);
+let cache = new Cacher(path.join(__dirname, './session'));
 
 co(function* () {
-    let sessionId = yield cache.getData();
-    if (!sessionId || !sessionId.length) {
-        sessionId = yield getSessionId();
+    let sessionId;
+    let account;
+    sessionId = yield cache.getData();
+    if (!sessionId) {
+        sessionId = yield tmdba.getAuthenticated();
         cache.setData(sessionId);
     }
-    let account = yield tmdb.call('/account', {
+    account = yield tmdb.call('/account', {
         session_id: sessionId
     });
-    if (account.status_code === 3) {
-        sessionId = yield getSessionId();
+    if (!account.id) {
+        sessionId = yield tmdba.getAuthenticated();
         cache.setData(sessionId);
         account = yield tmdb.call('/account', {
             session_id: sessionId
         });
     }
-    let createdList = yield tmdb.call(`/account/${account.id}/lists`, {
-        session_id: sessionId
-    });
-    let listId;
-    if (createdList.results.length) {
-        let result = createdList.results.find((item) => {
-            return item.name === config.tmdb.list;
+    for (let i = 0; i < config.tmdb.lists.length; i += 1) {
+        let list = config.tmdb.lists[i];
+        let movieDatas = yield extractDataFromFolderNames(
+            path.join(__dirname, list.folder)
+        );
+        let movieMetadatas = yield findMovieMetadatas(movieDatas);
+        let localMovies = movieMetadatas.map((metadata, i) => {
+            let result = {
+                _source: movieDatas[i]
+            };
+            if (metadata.total_results > 0) {
+                Object.assign(result, metadata.results[0]);
+            } else {
+                console.log(result);
+            }
+            return result;
         });
-        if (result) {
-            listId = result.id;
-        }
-    }
-    if (!listId) {
-        let result = yield tmdb.call('/list', {}, 'POST', {
-            name: config.tmdb.list,
-            description: '',
-            language: 'en',
+        let tmdbMovies = yield tmdb.call(`/list/${list.id}`, {
             session_id: sessionId
         });
-        listId = result.list_id;
+        let changes = getDiff(localMovies, tmdbMovies.items);
+
+        yield addOrRemoveMovies(changes, list.id, sessionId);
+
+        logSummary(changes);
     }
-    console.log();
-    console.log('session_id:', sessionId);
-    console.log('account_id:', account.id);
-    console.log('list_id:', listId);
-    console.log();
-    let movieDatas = yield extractDataFromFolderNames(config.sourceFolder);
-    let movieMetadatas = yield findMovieMetadatas(movieDatas);
-    let localMovies = movieMetadatas.map((metadata, i) => {
-        let result = {
-            _source: movieDatas[i]
-        };
-        if (metadata.total_results > 0) {
-            Object.assign(result, metadata.results[0]);
-        } else {
-            console.log(result);
-        }
-        return result;
-    });
-    let tmdbMovies = yield tmdb.call(`/list/${listId}`, {
-        session_id: sessionId
-    });
-    let changes = getDiff(localMovies, tmdbMovies.items);
-
-    yield addOrRemoveMovies(changes, listId, sessionId);
-
-    logSummary(changes);
 }).catch((error) => {
     console.log('Error', error);
     process.exit(0);
@@ -101,55 +83,6 @@ function logSummary(changes) {
         console.log(changes.add.join('\n'));
         console.log();
     }
-}
-
-/**
- * @return {Promise} Session ID
- */
-function getSessionId() {
-    return new Promise((resolve, reject) => {
-        tmdb.call('/authentication/token/new')
-            .then((auth) => {
-                console.log();
-                console.log('Approve the application with this URL:');
-                console.log(`https://www.themoviedb.org/authenticate/${auth.request_token}`);
-                console.log();
-                wait()
-                    .then(() => {
-                        tmdb.call('/authentication/session/new', {
-                            request_token: auth.request_token
-                        })
-                        .then((session) => {
-                            resolve(session.session_id);
-                        })
-                        .catch((err) => {
-                            reject(err);
-                        });
-                    })
-                    .catch((err) => {
-                        reject(err);
-                    });
-            })
-            .catch((err) => {
-                reject(err);
-            });
-    });
-}
-
-/**
- * @return {Promise} undefined
- */
-function wait() {
-    return new Promise((resolve, reject) => {
-        console.log('Press any key to continue...');
-        waitkey((res) => {
-            if (res) {
-                resolve();
-            } else {
-                reject('^C');
-            }
-        });
-    });
 }
 
 /**
