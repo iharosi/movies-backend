@@ -1,8 +1,12 @@
 module.exports = {
-    sourceFolder: './movies',
-    posterFolder: './public/posters',
     tmdb: {
-        key: '',
-        list: 'Movies'
+        key: 'abcdefghijklmnopqrstuvwxyz123456',
+        lists: [
+            {
+                id: 12345,
+                name: 'The name of your TMDb List',
+                folder: '/Volumes/Shared/Movies'
+            }
+        ]
     }
 };
