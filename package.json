@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "bottleneck": "^1.13.1",
+    "chokidar": "^1.6.0",
     "co": "^4.6.0",
     "keypress": "^0.2.1",
     "request": "^2.75.0"
