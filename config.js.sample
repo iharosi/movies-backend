@@ -1,4 +1,8 @@
 module.exports = {
+    cache: {
+        session: './session',
+        database: './db.json'
+    },
     tmdb: {
         key: 'abcdefghijklmnopqrstuvwxyz123456',
         lists: [
