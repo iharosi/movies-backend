@@ -4,30 +4,38 @@ const co = require('co');
 const path = require('path');
 const chokidar = require('chokidar');
 const Bottleneck = require('bottleneck');
+const color = require('./lib/colors');
+const config = require('./config');
 const TMDbClient = require('./lib/tmdbclient');
 const TMDbAuth = require('./lib/tmdbauth');
 const Cacher = require('./lib/cacher');
-
-let limiter = new Bottleneck(0, 300);
-let config = require('./config.js');
+const Store = require('./lib/store');
 let tmdb = new TMDbClient(config.tmdb.key);
 let tmdba = new TMDbAuth(config.tmdb.key);
-let cache = new Cacher(path.join(__dirname, './session'));
+let limiter = new Bottleneck(0, 300);
+let session = new Cacher(path.join(__dirname, config.cache.session));
+let database = new Cacher(path.join(__dirname, config.cache.database));
 
 co(function* init() {
+    let db = new Store(database);
+    let dbcache = yield database.getData();
+    if (dbcache) {
+        db.loadDatabase(dbcache);
+    }
+
     let sessionId;
     let account;
-    sessionId = yield cache.getData();
+    sessionId = yield session.getData();
     if (!sessionId) {
         sessionId = yield tmdba.getAuthenticated();
-        cache.setData(sessionId);
+        session.setData(sessionId);
     }
     account = yield tmdb.call('/account', {
         session_id: sessionId
     });
     if (!account.id) {
         sessionId = yield tmdba.getAuthenticated();
-        cache.setData(sessionId);
+        session.setData(sessionId);
         account = yield tmdb.call('/account', {
             session_id: sessionId
         });
@@ -52,22 +60,23 @@ co(function* init() {
         watcher
             .on('addDir', (folder) => {
                 if (folder) {
-                    console.log(`+ \x1b[32m${folder}\x1b[0m`);
-                    addMovie(folder, list, sessionId);
+                    console.log(`+ ${color.fgGreen}${folder}${color.reset}`);
+                    addMovie(db, folder, list.id, sessionId);
                 }
             })
             .on('unlinkDir', (folder) => {
                 if (folder) {
-                    console.log(`- \x1b[35m${folder}\x1b[0m`);
-                    removeMovie(folder, list, sessionId);
+                    console.log(`- ${color.fgMagenta}${folder}${color.reset}`);
+                    removeMovie(db, folder, list.id, sessionId);
                 }
             })
             .on('error', (error) => {
-                console.log(`\x1b[31mError\x1b[0m`, error);
+                console.log(`${color.fgRed}Error${color.reset}`, error);
             })
             .on('ready', () => {
-                console.log(`\x1b[2mInitial scan complete. ` +
-                    `Ready for changes.\x1b[0m`);
+                console.log(`${color.dim}Initial scan complete. ` +
+                    `Ready for changes.${color.reset}`);
+                syncTMDbList(db, list.id, sessionId);
             });
     }
 }).catch((error) => {
@@ -76,55 +85,98 @@ co(function* init() {
 });
 
 /**
+ * @param {Object} db Store instance
+ * @param {Number} listID TMDb list ID
+ * @param {Number} sessionID TMDb Session ID
+ */
+function syncTMDbList(db, listID, sessionID) {
+    getMoviesOfList(listID)
+        .then((list) => {
+            return list.items.map((item) => {
+                return item.id;
+            });
+        })
+        .then((listMovieIDs) => {
+            let movieIDs = db.getAll(listID)
+                .filter((item) => {
+                    let include = false;
+                    if (item.metadata && item.metadata.id) {
+                        include = true;
+                    }
+                    return include;
+                })
+                .map((item) => {
+                    return item.metadata.id;
+                });
+            return {
+                local: movieIDs,
+                remote: listMovieIDs
+            };
+        })
+        .then((movies) => {
+            let remove = movies.remote.filter((remoteItem) => {
+                return !movies.local.find((localItem) => {
+                    return remoteItem === localItem;
+                });
+            }).map((movieID) => {
+                return removeMovieFromList(movieID, listID, sessionID);
+            });
+            let add = movies.local.filter((localItem) => {
+                return !movies.remote.find((remoteItem) => {
+                    return localItem === remoteItem;
+                });
+            }).map((movieID) => {
+                return addMovieToList(movieID, listID, sessionID);
+            });
+            return remove.concat(add);
+        })
+        .catch((error) => {
+            console.log('Error', error);
+        });
+}
+
+/**
+ * @param {Object} db Store instance
  * @param {String} folder Folder name
- * @param {Object} list List item from config
+ * @param {Number} listID TMBb list ID
  * @param {Number} sessionID Session ID
  */
-function removeMovie(folder, list, sessionID) {
+function addMovie(db, folder, listID, sessionID) {
     let movie = extractDataFromFolderName(folder);
-    if (movie && movie.title && movie.year && movie.folder) {
-        findMovieMetadata(movie)
-            .then((metadata) => {
-                let id = null;
-                if (metadata.total_results > 0) {
-                    id = metadata.results[0].id;
-                } else {
-                    console.log(`\x1b[31mCouldn't locate movie in TMDb:`,
-                    `${movie.title} (${movie.year}) – ${movie.folder}\x1b[0m`);
-                }
-                return id;
-            })
-            // TODO: Introduce a Store where
-            // remote and local movies can be maintained
-            //
-            // .then((movieID) => {
-            //     let found = list.movies.items.find((item) => {
-            //         return item.id === movieID;
-            //     });
-            //     return found ? movieID : null;
-            // })
-            .then((movieID) => {
-                let result = null;
-                if (movieID) {
-                    result = removeMovieFromList(
-                        movieID,
-                        list.id,
-                        sessionID
-                    );
-                }
-                return result;
-            })
-            .then((result) => {
-                if (result && result.status_code !== 8) {
-                    console.log(
-                        `\x1b[33m${result.status_message} ` +
-                        `(${result.status_code})\x1b[0m`
-                    );
-                }
-            })
-            .catch((e) => {
-                console.log(e);
-            });
+    if (movie && movie.id && movie.title && movie.year) {
+        let addedMovie = db.insert(listID, movie);
+        if (addedMovie && !addedMovie.metadata) {
+            findMovieMetadata(movie)
+                .then((response) => {
+                    if (response.total_results > 0) {
+                        let result = response.results[0];
+                        db.update(listID, movie.id, {
+                            metadata: result
+                        });
+                        addMovieToList(result.id, listID, sessionID)
+                            .then((result) => {
+                                if (result && result.status_code !== 8) {
+                                    console.log(
+                                        `\x1b[33m${result.status_message} ` +
+                                        `(${result.status_code})\x1b[0m`
+                                    );
+                                }
+                            })
+                            .catch((e) => {
+                                console.log(e);
+                            });
+                    } else {
+                        console.log(
+                            `${color.fgRed}Couldn't locate movie in TMDb:`,
+                            `${movie.title} (${movie.year}) – ` +
+                            `${movie.id}${color.reset}`
+                        );
+                    }
+                })
+                .catch((err) => {
+                    console.log(err);
+                });
+        }
     } else {
         console.log(
             `\x1b[31mMovie title could not extract from: \x1b[0m`,
@@ -134,55 +186,29 @@ function removeMovie(folder, list, sessionID) {
 }
 
 /**
+ * @param {Object} db Store instance
  * @param {String} folder Folder name
- * @param {Object} list List item from config
+ * @param {Number} listID TMBb list ID
  * @param {Number} sessionID Session ID
  */
-function addMovie(folder, list, sessionID) {
+function removeMovie(db, folder, listID, sessionID) {
     let movie = extractDataFromFolderName(folder);
-    if (movie && movie.title && movie.year && movie.folder) {
-        findMovieMetadata(movie)
-            .then((metadata) => {
-                let movieID = null;
-                if (metadata.total_results > 0) {
-                    movieID = metadata.results[0].id;
-                } else {
-                    console.log(`\x1b[31mCouldn't locate movie in TMDb:`,
-                    `${movie.title} (${movie.year}) – ${movie.folder}\x1b[0m`);
-                }
-                return movieID;
-            })
-            // TODO: Introduce a Store where
-            // remote and local movies can be maintained
-            //
-            // .then((movieID) => {
-            //     let found = list.movies.items.find((item) => {
-            //         return item.id === movieID;
-            //     });
-            //     return found ? null : movieID;
-            // })
-            .then((movieID) => {
-                let result = null;
-                if (movieID) {
-                    result = addMovieToList(
-                        movieID,
-                        list.id,
-                        sessionID
-                    );
-                }
-                return result;
-            })
-            .then((result) => {
-                if (result && result.status_code !== 8) {
-                    console.log(
-                        `\x1b[33m${result.status_message} ` +
-                        `(${result.status_code})\x1b[0m`
-                    );
-                }
-            })
-            .catch((e) => {
-                console.log(e);
-            });
+    if (movie && movie.id && movie.title && movie.year) {
+        let removedMovie = db.delete(listID, movie.id);
+        if (removedMovie && removedMovie.metadata && removedMovie.metadata.id) {
+            removeMovieFromList(removedMovie.metadata.id, listID, sessionID)
+                .then((result) => {
+                    if (result && result.status_code !== 8) {
+                        console.log(
+                            `\x1b[33m${result.status_message} ` +
+                            `(${result.status_code})\x1b[0m`
+                        );
+                    }
+                })
+                .catch((e) => {
+                    console.log(e);
+                });
+        }
     } else {
         console.log(
             `\x1b[31mMovie title could not extract from: \x1b[0m`,
@@ -238,6 +264,17 @@ function addMovieToList(movieID, listID, sessionID) {
 }
 
 /**
+ * @param {Number} listID TMDb list ID
+ *
+ * @return {Promise.<array>} Array of objects, containing movie metadatas
+ */
+function getMoviesOfList(listID) {
+    return limiter.schedule(
+        tmdb.call.bind(tmdb, `/list/${listID}`)
+    );
+}
+
+/**
  * @param {Object} movie Extracted data from folder name
  *
  * @return {Promise} API call response body
@@ -264,9 +301,9 @@ function extractDataFromFolderName(folderName) {
     let matched = folderName.match(/^(.+)\.(\d{4})\./i);
     if (matched && matched.length >= 2) {
         return {
+            id: folderName,
             title: matched[1].replace(/\./g, ' '),
-            year: matched[2],
-            folder: folderName
+            year: matched[2]
         };
     }
 }
