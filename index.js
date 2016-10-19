@@ -42,15 +42,19 @@ co(function* init() {
     }
     for (let i = 0; i < config.tmdb.lists.length; i += 1) {
         let list = config.tmdb.lists[i];
+        let dir = list.folder;
+        if (!path.isAbsolute(dir)) {
+            dir = path.join(__dirname, list.folder);
+        }
 
         cleanUpDatabase(db, list.id);
 
-        let watcher = chokidar.watch(list.folder, {
+        let watcher = chokidar.watch(dir, {
             persistent: true,
             ignored: /[\/\\]\./,
             ignoreInitial: false,
             followSymlinks: false,
-            cwd: list.folder,
+            cwd: dir,
             depth: 0
         });
 
