@@ -5,7 +5,7 @@ Backend service which fetches metadata based on movies found in a folder and cre
 
 ## Install dependencies
 
-Requirements: [Node.js](https://nodejs.org/) at least version 6.x
+Requirements: [Node.js](https://nodejs.org/)
 
 1. `npm install`
 
@@ -14,8 +14,14 @@ Requirements: [Node.js](https://nodejs.org/) at least version 6.x
 1. `mv config.js.sample config.js`
 2. use your favourite editor to edit the config file
 3. enter your TMDb API key
-4. enter your desired (or existing) TMDb List name
+4. enter your existing TMDb list id(s) and name(s) and pair with your media folder(s)
 
 ## Run
 
+If your [Node.js](https://nodejs.org/) version is older than 6
+
 1. `npm start`
+
+if your [Node.js](https://nodejs.org/) version is 6.x or newer
+
+1. `npm run with-babel`

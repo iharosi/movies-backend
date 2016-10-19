@@ -12,7 +12,7 @@ const Cacher = require('./lib/cacher');
 const Store = require('./lib/store');
 let tmdb = new TMDbClient(config.tmdb.key);
 let tmdba = new TMDbAuth(config.tmdb.key);
-let limiter = new Bottleneck(0, 300);
+let limiter = new Bottleneck(0, 500);
 let session = new Cacher(path.join(__dirname, config.cache.session));
 let database = new Cacher(path.join(__dirname, config.cache.database));
 
@@ -42,11 +42,12 @@ co(function* init() {
     }
     for (let i = 0; i < config.tmdb.lists.length; i += 1) {
         let list = config.tmdb.lists[i];
-        let dir = path.join(__dirname, list.folder);
+        let dir = list.folder;
+        if (!path.isAbsolute(dir)) {
+            dir = path.join(__dirname, list.folder);
+        }
 
-        list.movies = yield tmdb.call(`/list/${list.id}`, {
-            session_id: sessionId
-        });
+        cleanUpDatabase(db, list.id);
 
         let watcher = chokidar.watch(dir, {
             persistent: true,
@@ -83,6 +84,20 @@ co(function* init() {
     console.log('Error', error);
     process.exit(0);
 });
+
+/**
+ * @param {Object} db Store instance
+ * @param {Number} listID TMDb list ID
+ */
+function cleanUpDatabase(db, listID) {
+    db.getAll(listID)
+        .filter((record) => {
+            return !record.metadata;
+        })
+        .forEach((record) => {
+            db.delete(listID, record.id);
+        });
+}
 
 /**
  * @param {Object} db Store instance
