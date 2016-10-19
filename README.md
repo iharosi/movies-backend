@@ -5,7 +5,7 @@ Backend service which fetches metadata based on movies found in a folder and cre
 
 ## Install dependencies
 
-Requirements: [Node.js](https://nodejs.org/) at least version 6.x
+Requirements: [Node.js](https://nodejs.org/)
 
 1. `npm install`
 
@@ -18,4 +18,10 @@ Requirements: [Node.js](https://nodejs.org/) at least version 6.x
 
 ## Run
 
+If your [Node.js](https://nodejs.org/) version is older than 6
+
 1. `npm start`
+
+if your [Node.js](https://nodejs.org/) version is 6.x or newer
+
+1. `npm run with-babel`
