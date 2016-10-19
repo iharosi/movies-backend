@@ -14,7 +14,7 @@ Requirements: [Node.js](https://nodejs.org/) at least version 6.x
 1. `mv config.js.sample config.js`
 2. use your favourite editor to edit the config file
 3. enter your TMDb API key
-4. enter your desired (or existing) TMDb List name
+4. enter your existing TMDb list id(s) and name(s) and pair with your media folder(s)
 
 ## Run
 
