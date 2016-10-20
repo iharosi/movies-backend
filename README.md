@@ -5,7 +5,7 @@ Backend service which fetches metadata based on movies found in a folder and cre
 
 ## Install dependencies
 
-Requirements: [Node.js](https://nodejs.org/)
+Requirements: [Node.js](https://nodejs.org/), [TMDb account](https://www.themoviedb.org/account/signup), [TMDb API key](https://www.themoviedb.org/faq/api?language=en), [TMDb list](https://www.themoviedb.org/documentation/editing/lists)
 
 1. `npm install`
 
@@ -18,10 +18,30 @@ Requirements: [Node.js](https://nodejs.org/)
 
 ## Run
 
-If your [Node.js](https://nodejs.org/) version is older than 6
+For Node.js version ≧ 6
 
 1. `npm start`
 
-if your [Node.js](https://nodejs.org/) version is 6.x or newer
+For Node.js version ≦ 5
 
 1. `npm run with-babel`
+
+2. approve the application on TMDb with the given URL
+
+<img src="app-approve.jpg" width="612" height="231" alt="Approve application">
+
+## About the folder name recognition
+
+Folder name should start with the movie title followed by the release year.  
+Release year can be followed by any other characters but it won't be recognised.  
+The title of the film can be in any language but original movie titles preferred for better matching.  
+If a title includes special characters it can be omitted.  
+
+Possible folder names for `2001: A Space Odyssey (1968)`:
+
+* 2001 (1968)
+* 2001 A Space Odyssey (1968)
+* 2001 Űrodüsszeia (1968)
+* 2001.1968
+* 2001.A.Space.Odyssey.1968
+* 2001.Urodusszeia.1968

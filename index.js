@@ -313,7 +313,7 @@ function findMovieMetadata(movie) {
  * @return {Object} Movie data (title, year) and folder name
  */
 function extractDataFromFolderName(folderName) {
-    let matched = folderName.match(/^(.+)\.(\d{4})\./i);
+    let matched = folderName.match(/^(.+?).(\d{4})/i);
     if (matched && matched.length >= 2) {
         return {
             id: folderName,
