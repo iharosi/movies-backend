@@ -25,3 +25,19 @@ For Node.js version ≧ 6
 For Node.js version ≦ 5
 
 1. `npm run with-babel`
+
+## About the folder name recognition
+
+Folder name should start with the movie title followed by the release year.  
+Release year can be followed by any other characters but it won't be recognised.  
+The title of the film can be in any language but original movie titles preferred for better matching.  
+If a title includes special characters it can be omitted.  
+
+Possible folder names for `2001: A Space Odyssey (1968)`:
+
+* 2001 (1968)
+* 2001 A Space Odyssey (1968)
+* 2001 Űrodüsszeia (1968)
+* 2001.1968
+* 2001.A.Space.Odyssey.1968
+* 2001.Urodusszeia.1968
