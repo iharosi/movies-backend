@@ -26,6 +26,10 @@ For Node.js version ≦ 5
 
 1. `npm run with-babel`
 
+2. approve the application on TMDb with the given URL
+
+<img src="app-approve.jpg" width="612" height="231" alt="Approve application">
+
 ## About the folder name recognition
 
 Folder name should start with the movie title followed by the release year.  
