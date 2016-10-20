@@ -5,7 +5,7 @@ Backend service which fetches metadata based on movies found in a folder and cre
 
 ## Install dependencies
 
-Requirements: [Node.js](https://nodejs.org/)
+Requirements: [Node.js](https://nodejs.org/), [TMDb account](https://www.themoviedb.org/account/signup), [TMDb API key](https://www.themoviedb.org/faq/api?language=en), [TMDb list](https://www.themoviedb.org/documentation/editing/lists)
 
 1. `npm install`
 
@@ -18,10 +18,10 @@ Requirements: [Node.js](https://nodejs.org/)
 
 ## Run
 
-If your [Node.js](https://nodejs.org/) version is older than 6
+For Node.js version ≧ 6
 
 1. `npm start`
 
-if your [Node.js](https://nodejs.org/) version is 6.x or newer
+For Node.js version ≦ 5
 
 1. `npm run with-babel`
