@@ -30,6 +30,35 @@ For Node.js version ≦ 5
 
 <img src="app-approve.jpg" width="612" height="231" alt="Approve application">
 
+## Run as a service
+
+You can run Movies backend as a service on your Synology NAS device.  
+To do that you have to SSH into your NAS.  
+Then create an Upstart script at `/etc/init/movies-backend.conf` with this content:
+
+```
+description "Movies backend"
+
+start on runlevel [2345]
+stop on runlevel [016]
+respawn
+
+setuid admin
+chdir /volume1/homes/admin/movies-backend/
+exec npm run with-babel
+```
+
+Download the latest release and extract it in your home then change the path regarding where you placed the source code.
+You should replace the username (admin) if your user is named something else.  
+
+Now start the service:
+
+```
+sudo start movies-backend
+```
+
+That's it.
+
 ## About the folder name recognition
 
 Folder name should start with the movie title followed by the release year.  
