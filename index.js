@@ -17,7 +17,7 @@ let session = new Cacher(path.join(__dirname, config.cache.session));
 let database = new Cacher(path.join(__dirname, config.cache.database));
 
 co(function* init() {
-    let db = new Store(database);
+    let db = new Store(config.tmdb.lists, database);
     let dbcache = yield database.getData();
     if (dbcache) {
         db.loadDatabase(dbcache);
